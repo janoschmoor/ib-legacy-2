@@ -2,40 +2,39 @@ import NextAuth from 'next-auth';
 import { authConfig } from './auth.config';
 import Credentials from 'next-auth/providers/credentials';
 import { z } from 'zod';
-import { config } from 'dotenv';
-// import { sql } from '@vercel/postgres';
 import type { User } from '@/app/lib/definitions';
 
- 
+
+async function getUser(username: string): Promise<User | undefined> {
+  try {
+    // const user = await sql<User>`SELECT * FROM users WHERE email=${email}`;
+    const user = { username };
+    return user;
+  } catch (error) {
+    console.error('Failed to fetch user:', error);
+    throw new Error('Failed to fetch user.');
+  }
+}
+
 export const { auth, signIn, signOut } = NextAuth({
-  ...authConfig,
-  providers: [
-    Credentials({
-      async authorize(credentials): Promise<User | null>{
-        const parsedCredentials = z
-            .object({ username: z.string(), password: z.string().min(6) })
-            .safeParse(credentials);
+...authConfig,
+providers: [
+  Credentials({
+    async authorize(credentials) {
+      const parsedCredentials = z
+        .object({ email: z.string().email(), password: z.string().min(6) })
+        .safeParse(credentials);
 
-        if (parsedCredentials.success) {
-            const { username, password } = parsedCredentials.data;
-            // Load environment variables from .env file
-            config();
+      if (parsedCredentials.success) {
+          const { email, password } = parsedCredentials.data;
+          const user = await getUser(email);
+          if (!user) return null;
+          const passwordsMatch = true;
 
-            // Get the user and password from the environment variables
-            const user = process.env.USER;
-            const pwd = process.env.PASSWORD;
-
-            // Check if the provided credentials match the user and password from the environment variables
-            if (username === user && password === pwd) {
-                // Authentication successful
-                return { username };
-            } else {
-                // Authentication failed
-                return null;
-            }
-        }
-        return null;
-      },
-    }),
-  ],
+          if (passwordsMatch) return user;
+      }
+      return null;
+    },
+  }),
+],
 });
